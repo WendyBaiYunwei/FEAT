@@ -17,6 +17,8 @@ from model.utils import (
 from tensorboardX import SummaryWriter
 from collections import deque
 from tqdm import tqdm
+from model.trainer.rf_classifier import RF
+import neptune.new as neptune
 
 class FSLTrainer(Trainer):
     def __init__(self, args):
@@ -25,6 +27,14 @@ class FSLTrainer(Trainer):
         self.train_loader, self.val_loader, self.test_loader = get_dataloader(args)
         self.model, self.para_model = prepare_model(args)
         self.optimizer, self.lr_scheduler = prepare_optimizer(self.model, args)
+        self.rf = RF()
+        self.run = neptune.init(
+            project="wendy/rf-fs",
+            api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlMjgyMjA4NS1hNWRhLTQxZWEtYWJkMC1hYjE1ODBiYmM3OGUifQ==",
+        )
+
+        params = {"name": "feat-51-baseline"}
+        self.run["parameters"] = params
 
     def prepare_label(self):
         args = self.args
@@ -42,6 +52,11 @@ class FSLTrainer(Trainer):
             
         return label, label_aux
     
+    def get_new_logits(self, rf, logits):
+        concatRel = torch.concat([rf.unsqueeze(2).cuda(), logits.unsqueeze(2).cuda()], dim = 2)
+        logits = torch.mean(concatRel, dim = 2).squeeze().cuda()
+        return logits
+
     def train(self):
         args = self.args
         self.model.train()
@@ -65,15 +80,25 @@ class FSLTrainer(Trainer):
                 self.train_step += 1
 
                 if torch.cuda.is_available():
-                    data, gt_label = [_.cuda() for _ in batch]
+                    data, gt_label = [_.cuda() for _ in batch[:-1]]
                 else:
                     data, gt_label = batch[0], batch[1]
+                names = batch[2]
+                # print(gt_label.shape, names)
+                # print(label.shape)
+                # print(label[:15])
+                # print(gt_label[:15])
+                
                
                 data_tm = time.time()
                 self.dt.add(data_tm - start_tm)
 
                 # get saved centers
-                logits, reg_logits = self.para_model(data)
+                logits, reg_logits = self.para_model(data) #75, 5
+
+                # rf_preds = self.rf.getBatchRelScoresTrain(names)#td, 75, 5
+                # logits = self.get_new_logits(rf_preds, logits)
+
                 if reg_logits is not None:
                     loss = F.cross_entropy(logits, label)
                     total_loss = loss + args.balance * F.cross_entropy(reg_logits, label_aux)
@@ -122,6 +147,7 @@ class FSLTrainer(Trainer):
         label = label.type(torch.LongTensor)
         if torch.cuda.is_available():
             label = label.cuda()
+        
         print('best epoch {}, best val acc={:.4f} + {:.4f}'.format(
                 self.trlog['max_acc_epoch'],
                 self.trlog['max_acc'],
@@ -129,11 +155,13 @@ class FSLTrainer(Trainer):
         with torch.no_grad():
             for i, batch in enumerate(data_loader, 1):
                 if torch.cuda.is_available():
-                    data, _ = [_.cuda() for _ in batch]
+                    data, _ = [_.cuda() for _ in batch[:-1]]
                 else:
                     data = batch[0]
-
+                names = batch[2]
                 logits = self.model(data)
+                # rf_preds = self.rf.getBatchRelScoresVal(names)
+                # logits = self.get_new_logits(rf_preds, logits)
                 loss = F.cross_entropy(logits, label)
                 acc = count_acc(logits, label)
                 record[i-1, 0] = loss.item()
@@ -142,6 +170,7 @@ class FSLTrainer(Trainer):
         assert(i == record.shape[0])
         vl, _ = compute_confidence_interval(record[:,0])
         va, vap = compute_confidence_interval(record[:,1])
+        self.run['val_acc'].log(va)
         
         # train mode
         self.model.train()
@@ -161,6 +190,7 @@ class FSLTrainer(Trainer):
         label = label.type(torch.LongTensor)
         if torch.cuda.is_available():
             label = label.cuda()
+        
         print('best epoch {}, best val acc={:.4f} + {:.4f}'.format(
                 self.trlog['max_acc_epoch'],
                 self.trlog['max_acc'],
@@ -168,11 +198,14 @@ class FSLTrainer(Trainer):
         with torch.no_grad():
             for i, batch in tqdm(enumerate(self.test_loader, 1)):
                 if torch.cuda.is_available():
-                    data, _ = [_.cuda() for _ in batch]
+                    data, _ = [_.cuda() for _ in batch[:-1]]
                 else:
                     data = batch[0]
 
+                names = batch[2]
                 logits = self.model(data)
+                # rf_preds = self.rf.getBatchRelScoresTest(names)
+                # logits = self.get_new_logits(rf_preds, logits)
                 loss = F.cross_entropy(logits, label)
                 acc = count_acc(logits, label)
                 record[i-1, 0] = loss.item()
@@ -180,11 +213,13 @@ class FSLTrainer(Trainer):
         assert(i == record.shape[0])
         vl, _ = compute_confidence_interval(record[:,0])
         va, vap = compute_confidence_interval(record[:,1])
+        self.run['test_acc'].log(va)
         
         self.trlog['test_acc'] = va
         self.trlog['test_acc_interval'] = vap
         self.trlog['test_loss'] = vl
 
+        
         print('best epoch {}, best val acc={:.4f} + {:.4f}\n'.format(
                 self.trlog['max_acc_epoch'],
                 self.trlog['max_acc'],

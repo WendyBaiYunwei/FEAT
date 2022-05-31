@@ -10,8 +10,8 @@ import numpy as np
 THIS_PATH = osp.dirname(__file__)
 ROOT_PATH = osp.abspath(osp.join(THIS_PATH, '..', '..'))
 ROOT_PATH2 = osp.abspath(osp.join(THIS_PATH, '..', '..', '..'))
-IMAGE_PATH1 = osp.join(ROOT_PATH2, 'data/miniimagenet/images')
-SPLIT_PATH = osp.join(ROOT_PATH, 'data/miniimagenet/split')
+IMAGE_PATH1 = osp.join(ROOT_PATH2, '/mnt/hdd/yw/miniimagenet/images')
+SPLIT_PATH = osp.join(ROOT_PATH, '/mnt/hdd/yw/miniimagenet')
 CACHE_PATH = osp.join(ROOT_PATH, '.cache/')
 
 def identity(x):
@@ -33,15 +33,18 @@ class MiniImageNet(Dataset):
                 data, label = self.parse_csv(csv_path, setname)
                 self.data = [ resize_(Image.open(path).convert('RGB')) for path in data ]
                 self.label = label
+                self.name = [ path.split('/')[-1] for path in data ]
                 print('* Dump cache from {}'.format(cache_path))
-                torch.save({'data': self.data, 'label': self.label }, cache_path)
+                torch.save({'data': self.data, 'label': self.label, \
+                    'name': self.name }, cache_path)
             else:
                 print('* Load cache from {}'.format(cache_path))
                 cache = torch.load(cache_path)
                 self.data  = cache['data']
                 self.label = cache['label']
+                self.name = cache['name']
         else:
-            self.data, self.label = self.parse_csv(csv_path, setname)
+            self.data, self.label, self.name = self.parse_csv(csv_path, setname)
 
         self.num_class = len(set(self.label))
 
@@ -93,12 +96,14 @@ class MiniImageNet(Dataset):
 
         data = []
         label = []
+        names = []
         lb = -1
 
         self.wnids = []
 
         for l in tqdm(lines, ncols=64):
             name, wnid = l.split(',')
+            names.append(name)
             path = osp.join(IMAGE_PATH1, name)
             if wnid not in self.wnids:
                 self.wnids.append(wnid)
@@ -106,17 +111,17 @@ class MiniImageNet(Dataset):
             data.append( path )
             label.append(lb)
 
-        return data, label
+        return data, label, names
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, i):
-        data, label = self.data[i], self.label[i]
+        data, label, name = self.data[i], self.label[i], self.name[i]
         if self.use_im_cache:
             image = self.transform(data)
         else:
             image = self.transform(Image.open(data).convert('RGB'))
         
-        return image, label
+        return image, label, name
 
