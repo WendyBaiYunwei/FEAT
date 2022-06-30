@@ -16,9 +16,11 @@ class RF():
         self.config = Config()
         with open(self.config.data_dir + 'rf_trainX.pkl', 'rb') as f:
             trainX = pickle.load(f)
+            trainX = trainX.astype(dtype=np.float16)
 
         with open(self.config.data_dir + 'rf_trainY.pkl', 'rb') as f:
             trainY = pickle.load(f)
+            trainY = trainY.astype(dtype=np.float16)
 
         # with open(self.config.data_dir + 'rf_testX.pkl', 'rb') as f:
         #     testX = pickle.load(f)
@@ -29,13 +31,16 @@ class RF():
         with open(self.config.data_dir + 'embedding_resnet18_64classes.pkl', 'rb') as f:
         # with open(self.config.data_dir + 'embedding_new.pkl', 'rb') as f:
             self.embeddings = pickle.load(f)
+            self.embeddings = self.embeddings.astype(dtype=np.float16)
 
         with open(self.config.data_dir + 'embedding_resnet18_64classes_val.pkl', 'rb') as f:
             self.embeddingsVal = pickle.load(f)
+            self.embeddingsVal = self.embeddingsVal.astype(dtype=np.float16)
 
         with open(self.config.data_dir + 'embedding_resnet18_64classes_test.pkl', 'rb') as f:
         # with open(self.config.data_dir + 'embedding_new_test.pkl', 'rb') as f:
             self.embeddingsTest = pickle.load(f)
+            self.embeddingsTest = self.embeddingsTest.astype(dtype=np.float16)
 
         with open(self.config.data_dir + 'imgNameToIdx.json', 'r') as f:
             self.nameToIdx = json.load(f)
@@ -96,7 +101,7 @@ class RF():
         for class_i in range(5):
             classEmbeddings = []
             for shot_i in range(self.shot_size):
-                sName = supportNames[class_i * 5 + shot_i]
+                sName = supportNames[shot_i * 5 + class_i]
                 sEmbedding = self.embeddingsVal[self.nameToIdxVal[sName]]
                 classEmbeddings.append(sEmbedding)
             avgEmebdding = np.mean(classEmbeddings, axis = 0)
@@ -127,8 +132,8 @@ class RF():
         for class_i in range(5):
             classEmbeddings = []
             for shot_i in range(self.shot_size):
-                sName = supportNames[class_i * 5 + shot_i]
-                sEmbedding = self.embeddingsTest[self.nameToIdxVal[sName]]
+                sName = supportNames[shot_i * 5 + class_i]
+                sEmbedding = self.embeddingsTest[self.nameToIdxTest[sName]]
                 classEmbeddings.append(sEmbedding)
             avgEmebdding = np.mean(classEmbeddings, axis = 0)
             sEmbeddings.append(avgEmebdding)

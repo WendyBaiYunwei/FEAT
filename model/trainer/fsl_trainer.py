@@ -95,6 +95,7 @@ class FSLTrainer(Trainer):
 
                 # get saved centers
                 logits, reg_logits = self.para_model(data) #75, 5
+                # print(logits.shape)
 
                 # rf_preds = self.rf.getBatchRelScoresTrain(names)#td, 75, 5
                 # logits = self.get_new_logits(rf_preds, logits)
