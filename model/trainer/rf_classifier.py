@@ -49,9 +49,11 @@ class RF():
         with open(self.config.data_dir + 'weights.pkl', 'rb') as f:
             weights = pickle.load(f)
 
+        self.shot_size = 5
+
         print(trainX.shape, trainY.shape)
         print('start RF training')
-        self.classifier = RandomForestRegressor(n_estimators = 200, random_state = 0, max_features = 4)#td
+        self.classifier = RandomForestRegressor(n_estimators = 200, random_state = 0, max_features = 4)
         # self.classifier.fit(trainX, trainY)
         self.classifier.fit(trainX, trainY, weights)
         print('done RF training')
@@ -61,8 +63,8 @@ class RF():
         del trainY
 
     def getBatchRelScoresTrain(self, names):
-        supportNames = names[:5]
-        batchQueryNames = names[5:]
+        supportNames = names[:5*5]
+        batchQueryNames = names[5*5:]
         diffs = []
         #5-way td
         for qName in batchQueryNames:
@@ -87,15 +89,24 @@ class RF():
         return torch.from_numpy(preds)
 
     def getBatchRelScoresVal(self, names):
-        supportNames = names[:5]
-        batchQueryNames = names[5:]
+        supportNames = names[:5*self.shot_size]
+        batchQueryNames = names[5*self.shot_size:]
         diffs = []
+        sEmbeddings = []
+        for class_i in range(5):
+            classEmbeddings = []
+            for shot_i in range(self.shot_size):
+                sName = supportNames[class_i * 5 + shot_i]
+                sEmbedding = self.embeddingsVal[self.nameToIdxVal[sName]]
+                classEmbeddings.append(sEmbedding)
+            avgEmebdding = np.mean(classEmbeddings, axis = 0)
+            sEmbeddings.append(avgEmebdding)
+
         for qName in batchQueryNames:
             qEmbedding = self.embeddingsVal[self.nameToIdxVal[qName]]
-            for i, sName in enumerate(supportNames):
-               
-                sEmbedding = self.embeddingsVal[self.nameToIdxVal[sName]]
-                diff = (sEmbedding - qEmbedding) ** 2
+            for class_i in range(5):
+                avgEmebdding = sEmbeddings[class_i]
+                diff = (avgEmebdding - qEmbedding) ** 2
                 diffs.append(diff)
         # diffs = np.stack(diffs).round(2).reshape(-1, 512)
         diffs = np.stack(diffs).reshape(-1, 512)
@@ -109,15 +120,24 @@ class RF():
         return torch.from_numpy(preds)
 
     def getBatchRelScoresTest(self, names):
-        supportNames = names[:5]
-        batchQueryNames = names[5:]
+        supportNames = names[:5*self.shot_size]
+        batchQueryNames = names[5*self.shot_size:]
         diffs = []
+        sEmbeddings = []
+        for class_i in range(5):
+            classEmbeddings = []
+            for shot_i in range(self.shot_size):
+                sName = supportNames[class_i * 5 + shot_i]
+                sEmbedding = self.embeddingsTest[self.nameToIdxVal[sName]]
+                classEmbeddings.append(sEmbedding)
+            avgEmebdding = np.mean(classEmbeddings, axis = 0)
+            sEmbeddings.append(avgEmebdding)
+
         for qName in batchQueryNames:
             qEmbedding = self.embeddingsTest[self.nameToIdxTest[qName]]
-            for i, sName in enumerate(supportNames):
-                
-                sEmbedding = self.embeddingsTest[self.nameToIdxTest[sName]]
-                diff = (sEmbedding - qEmbedding) ** 2
+            for class_i in range(5):
+                avgEmebdding = sEmbeddings[class_i]
+                diff = (avgEmebdding - qEmbedding) ** 2
                 diffs.append(diff)  
         # diffs = np.stack(diffs).round(2).reshape(-1, 512)
         diffs = np.stack(diffs).reshape(-1, 512)

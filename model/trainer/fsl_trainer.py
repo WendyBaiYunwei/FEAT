@@ -33,7 +33,7 @@ class FSLTrainer(Trainer):
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlMjgyMjA4NS1hNWRhLTQxZWEtYWJkMC1hYjE1ODBiYmM3OGUifQ==",
         )
 
-        params = {"name": "feat-51-baseline"}
+        params = {"name": "feat-55-ensemble"}
         self.run["parameters"] = params
 
     def prepare_label(self):
@@ -83,7 +83,7 @@ class FSLTrainer(Trainer):
                     data, gt_label = [_.cuda() for _ in batch[:-1]]
                 else:
                     data, gt_label = batch[0], batch[1]
-                names = batch[2]
+                names = batch[2] #class1sample1,class2sample1, ... class1sample2, ... class5sample5
                 # print(gt_label.shape, names)
                 # print(label.shape)
                 # print(label[:15])
@@ -160,8 +160,8 @@ class FSLTrainer(Trainer):
                     data = batch[0]
                 names = batch[2]
                 logits = self.model(data)
-                # rf_preds = self.rf.getBatchRelScoresVal(names)
-                # logits = self.get_new_logits(rf_preds, logits)
+                rf_preds = self.rf.getBatchRelScoresVal(names)
+                logits = self.get_new_logits(rf_preds, logits)
                 loss = F.cross_entropy(logits, label)
                 acc = count_acc(logits, label)
                 record[i-1, 0] = loss.item()
@@ -204,8 +204,8 @@ class FSLTrainer(Trainer):
 
                 names = batch[2]
                 logits = self.model(data)
-                # rf_preds = self.rf.getBatchRelScoresTest(names)
-                # logits = self.get_new_logits(rf_preds, logits)
+                rf_preds = self.rf.getBatchRelScoresTest(names)
+                logits = self.get_new_logits(rf_preds, logits)
                 loss = F.cross_entropy(logits, label)
                 acc = count_acc(logits, label)
                 record[i-1, 0] = loss.item()
