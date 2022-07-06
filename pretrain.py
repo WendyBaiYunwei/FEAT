@@ -42,6 +42,8 @@ if __name__ == '__main__':
         from model.dataloader.cub import CUB as Dataset
     elif args.dataset == 'TieredImagenet':
         from model.dataloader.tiered_imagenet import tieredImageNet as Dataset    
+    elif args.dataset == 'cifar-fs':
+        from model.dataloader.cifar import Cifar as Dataset    
     else:
         raise ValueError('Non-supported Dataset.')
 

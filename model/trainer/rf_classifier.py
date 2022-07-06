@@ -54,7 +54,7 @@ class RF():
         with open(self.config.data_dir + 'weights.pkl', 'rb') as f:
             weights = pickle.load(f)
 
-        self.shot_size = 5
+        self.shot_size = 1
 
         print(trainX.shape, trainY.shape)
         print('start RF training')
@@ -73,9 +73,9 @@ class RF():
         diffs = []
         #5-way td
         for qName in batchQueryNames:
-            qEmbedding = self.embeddings[self.nameToIdx[qName]]
+            qEmbedding = self.embeddings[qName]
             for i, sName in enumerate(supportNames):
-                sEmbedding = self.embeddings[self.nameToIdx[sName]]
+                sEmbedding = self.embeddings[sName]
                 diff = (sEmbedding - qEmbedding) ** 2
                 diffs.append(diff)
         # diffs = np.stack(diffs).round(2).reshape(-1, 512)
@@ -102,13 +102,13 @@ class RF():
             classEmbeddings = []
             for shot_i in range(self.shot_size):
                 sName = supportNames[shot_i * 5 + class_i]
-                sEmbedding = self.embeddingsVal[self.nameToIdxVal[sName]]
+                sEmbedding = self.embeddingsVal[sName]
                 classEmbeddings.append(sEmbedding)
             avgEmebdding = np.mean(classEmbeddings, axis = 0)
             sEmbeddings.append(avgEmebdding)
 
         for qName in batchQueryNames:
-            qEmbedding = self.embeddingsVal[self.nameToIdxVal[qName]]
+            qEmbedding = self.embeddingsVal[qName]
             for class_i in range(5):
                 avgEmebdding = sEmbeddings[class_i]
                 diff = (avgEmebdding - qEmbedding) ** 2
@@ -133,13 +133,13 @@ class RF():
             classEmbeddings = []
             for shot_i in range(self.shot_size):
                 sName = supportNames[shot_i * 5 + class_i]
-                sEmbedding = self.embeddingsTest[self.nameToIdxTest[sName]]
+                sEmbedding = self.embeddingsTest[sName]
                 classEmbeddings.append(sEmbedding)
             avgEmebdding = np.mean(classEmbeddings, axis = 0)
             sEmbeddings.append(avgEmebdding)
 
         for qName in batchQueryNames:
-            qEmbedding = self.embeddingsTest[self.nameToIdxTest[qName]]
+            qEmbedding = self.embeddingsTest[qName]
             for class_i in range(5):
                 avgEmebdding = sEmbeddings[class_i]
                 diff = (avgEmebdding - qEmbedding) ** 2

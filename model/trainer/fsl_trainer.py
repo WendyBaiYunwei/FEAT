@@ -33,7 +33,7 @@ class FSLTrainer(Trainer):
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlMjgyMjA4NS1hNWRhLTQxZWEtYWJkMC1hYjE1ODBiYmM3OGUifQ==",
         )
 
-        params = {"name": "feat-55-ensemble"}
+        params = {"name": "protonet-55-baseline"}
         self.run["parameters"] = params
 
     def prepare_label(self):
@@ -126,7 +126,7 @@ class FSLTrainer(Trainer):
 
                 # refresh start_tm
                 start_tm = time.time()
-
+            
             self.lr_scheduler.step()
             self.try_evaluate(epoch)
 
@@ -161,8 +161,8 @@ class FSLTrainer(Trainer):
                     data = batch[0]
                 names = batch[2]
                 logits = self.model(data)
-                rf_preds = self.rf.getBatchRelScoresVal(names)
-                logits = self.get_new_logits(rf_preds, logits)
+                # rf_preds = self.rf.getBatchRelScoresVal(names)
+                # logits = self.get_new_logits(rf_preds, logits)
                 loss = F.cross_entropy(logits, label)
                 acc = count_acc(logits, label)
                 record[i-1, 0] = loss.item()
@@ -184,7 +184,58 @@ class FSLTrainer(Trainer):
         # restore model args
         args = self.args
         # evaluation mode
-        self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
+        # self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
+        self.model.eval()
+        record = np.zeros((10000, 2)) # loss and acc
+        label = torch.arange(args.eval_way, dtype=torch.int16).repeat(args.eval_query)
+        label = label.type(torch.LongTensor)
+        if torch.cuda.is_available():
+            label = label.cuda()
+        
+        print('best epoch {}, best val acc={:.4f} + {:.4f}'.format(
+                self.trlog['max_acc_epoch'],
+                self.trlog['max_acc'],
+                self.trlog['max_acc_interval']))
+        with torch.no_grad():
+            for i, batch in tqdm(enumerate(self.test_loader, 1)):
+                if torch.cuda.is_available():
+                    data, _ = [_.cuda() for _ in batch[:-1]]
+                else:
+                    data = batch[0]
+
+                names = batch[2]
+                logits = self.model(data)
+                # rf_preds = self.rf.getBatchRelScoresTest(names)
+                # logits = self.get_new_logits(rf_preds, logits)
+                loss = F.cross_entropy(logits, label)
+                acc = count_acc(logits, label)
+                record[i-1, 0] = loss.item()
+                record[i-1, 1] = acc
+        assert(i == record.shape[0])
+        vl, _ = compute_confidence_interval(record[:,0])
+        va, vap = compute_confidence_interval(record[:,1])
+        self.run['test_acc'].log(va)
+        
+        self.trlog['test_acc'] = va
+        self.trlog['test_acc_interval'] = vap
+        self.trlog['test_loss'] = vl
+
+        
+        print('best epoch {}, best val acc={:.4f} + {:.4f}\n'.format(
+                self.trlog['max_acc_epoch'],
+                self.trlog['max_acc'],
+                self.trlog['max_acc_interval']))
+        print('Test acc={:.4f} + {:.4f}\n'.format(
+                self.trlog['test_acc'],
+                self.trlog['test_acc_interval']))
+
+        return vl, va, vap
+
+    def evaluate_test2(self):
+        # restore model args
+        args = self.args
+        # evaluation mode
+        # self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
         self.model.eval()
         record = np.zeros((10000, 2)) # loss and acc
         label = torch.arange(args.eval_way, dtype=torch.int16).repeat(args.eval_query)
