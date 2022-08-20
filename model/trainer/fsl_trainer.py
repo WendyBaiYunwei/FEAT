@@ -27,13 +27,13 @@ class FSLTrainer(Trainer):
         self.train_loader, self.val_loader, self.test_loader = get_dataloader(args)
         self.model, self.para_model = prepare_model(args)
         self.optimizer, self.lr_scheduler = prepare_optimizer(self.model, args)
-        self.rf = RF()
+        self.rf = RF(args)
         self.run = neptune.init(
             project="wendy/rf-fs",
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlMjgyMjA4NS1hNWRhLTQxZWEtYWJkMC1hYjE1ODBiYmM3OGUifQ==",
         )
 
-        params = {"name": "protonet-55-baseline"}
+        params = {"name": args.model+'-'+args.backbone+'-'+str(args.way)+str(args.shot)}
         self.run["parameters"] = params
 
     def prepare_label(self):
@@ -184,7 +184,7 @@ class FSLTrainer(Trainer):
         # restore model args
         args = self.args
         # evaluation mode
-        # self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
+        self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
         self.model.eval()
         record = np.zeros((10000, 2)) # loss and acc
         label = torch.arange(args.eval_way, dtype=torch.int16).repeat(args.eval_query)
@@ -235,7 +235,7 @@ class FSLTrainer(Trainer):
         # restore model args
         args = self.args
         # evaluation mode
-        # self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
+        self.model.load_state_dict(torch.load(osp.join(self.args.save_path, 'max_acc.pth'))['params'])
         self.model.eval()
         record = np.zeros((10000, 2)) # loss and acc
         label = torch.arange(args.eval_way, dtype=torch.int16).repeat(args.eval_query)
