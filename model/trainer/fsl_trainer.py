@@ -33,7 +33,7 @@ class FSLTrainer(Trainer):
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlMjgyMjA4NS1hNWRhLTQxZWEtYWJkMC1hYjE1ODBiYmM3OGUifQ==",
         )
 
-        params = {"name": args.model+'-'+args.backbone+'-'+str(args.way)+str(args.shot)}
+        params = {"name": args.model_class+'-'+args.backbone_class+'-'+str(args.way)+str(args.shot)}
         self.run["parameters"] = params
 
     def prepare_label(self):
@@ -247,6 +247,16 @@ class FSLTrainer(Trainer):
                 self.trlog['max_acc_epoch'],
                 self.trlog['max_acc'],
                 self.trlog['max_acc_interval']))
+
+        total_rewards = 0
+        total = 0
+        rf1orig1 = 0
+        rf1orig0 = 0
+        rf0orig0 = 0
+        rf0orig1 = 0
+        ens2right = 0
+        ens2wrong = 0
+
         with torch.no_grad():
             for i, batch in tqdm(enumerate(self.test_loader, 1)):
                 if torch.cuda.is_available():
@@ -255,13 +265,36 @@ class FSLTrainer(Trainer):
                     data = batch[0]
 
                 names = batch[2]
-                logits = self.model(data)
+                orig_logits = self.model(data)
                 rf_preds = self.rf.getBatchRelScoresTest(names)
-                logits = self.get_new_logits(rf_preds, logits)
+                logits = self.get_new_logits(rf_preds, orig_logits)
                 loss = F.cross_entropy(logits, label)
                 acc = count_acc(logits, label)
                 record[i-1, 0] = loss.item()
                 record[i-1, 1] = acc
+
+                batch_size = len(batch)
+                _,finalLabels =  torch.max(logits.data,1)
+                rewards =  np.array([True if finalLabels[j]==label[j] else False for j in range(batch_size)])
+                total_rewards += np.sum(rewards.astype(int))
+                total += batch_size
+                _,rfLabels = torch.max(rf_preds.data,1)
+                _,origLabels = torch.max(orig_logits.data,1)
+                negRewards = np.array([False if finalLabels[j]==label[j] else True for j in range(batch_size)])
+                rfLabels = rfLabels.cpu()
+                origLabels = origLabels.cpu()
+                labelCpu = label.cpu()
+                rfRewards = np.array([True if rfLabels[j]==labelCpu[j] else False for j in range(batch_size)])
+                origRewards = np.array([True if origLabels[j]==labelCpu[j] else False for j in range(batch_size)])
+                rfNegRewards = np.array([False if rfLabels[j]==labelCpu[j] else True for j in range(batch_size)])
+                origNegRewards = np.array([False if origLabels[j]==labelCpu[j] else True for j in range(batch_size)])
+                rf1orig1 += np.sum(np.logical_and(rfRewards, origRewards).astype(int)) # both are true
+                rf1orig0 += np.sum(np.logical_and(rfRewards, origNegRewards).astype(int)) # rf is right, orig is wrong
+                rf0orig1 += np.sum(np.logical_and(rfNegRewards, origRewards).astype(int))
+                rf0orig0 += np.sum(np.logical_and(rfNegRewards, origNegRewards).astype(int))
+                ens2right += np.sum(np.logical_and(rewards, origNegRewards).astype(int))
+                ens2wrong += np.sum(np.logical_and(negRewards, origRewards).astype(int))
+
         assert(i == record.shape[0])
         vl, _ = compute_confidence_interval(record[:,0])
         va, vap = compute_confidence_interval(record[:,1])
@@ -279,6 +312,13 @@ class FSLTrainer(Trainer):
         print('Test acc={:.4f} + {:.4f}\n'.format(
                 self.trlog['test_acc'],
                 self.trlog['test_acc_interval']))
+        print('totalRight:', total_rewards)
+        print('rf1orig1', rf1orig1)
+        print('rf1orig0', rf1orig0)
+        print('rf0orig0', rf0orig0)
+        print('rf0orig1', rf0orig1)
+        print('ens2right', ens2right)
+        print('ens2Wrong', ens2wrong)
 
         return vl, va, vap
     
