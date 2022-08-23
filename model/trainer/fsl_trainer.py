@@ -276,7 +276,6 @@ class FSLTrainer(Trainer):
                 batch_size = len(batch)
                 _,finalLabels =  torch.max(logits.data,1)
                 rewards =  np.array([True if finalLabels[j]==label[j] else False for j in range(batch_size)])
-                total_rewards += np.sum(rewards.astype(int))
                 total += batch_size
                 _,rfLabels = torch.max(rf_preds.data,1)
                 _,origLabels = torch.max(orig_logits.data,1)
@@ -312,7 +311,7 @@ class FSLTrainer(Trainer):
         print('Test acc={:.4f} + {:.4f}\n'.format(
                 self.trlog['test_acc'],
                 self.trlog['test_acc_interval']))
-        print('totalRight:', total_rewards)
+
         print('rf1orig1', rf1orig1)
         print('rf1orig0', rf1orig0)
         print('rf0orig0', rf0orig0)

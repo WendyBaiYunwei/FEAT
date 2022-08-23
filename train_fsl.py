@@ -16,8 +16,8 @@ if __name__ == '__main__':
 
     set_gpu(args.gpu)
     trainer = FSLTrainer(args)
-    trainer.train()
-    trainer.evaluate_test()
+    # trainer.train()
+    # trainer.evaluate_test()
     trainer.evaluate_test2()
     trainer.final_record()
     print(args.save_path)
